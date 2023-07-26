@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Listing content script
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  Read messages from the swiper and print as a list on a created window
 // @author       You
 // @match        https://beta.character.ai/chat*
@@ -14,7 +14,7 @@
     'use strict';
 
     let messages = [];
-    let isScrolledToBottom = true;
+    let isScrolledToBottom = false;
     let added = false;
     let detected = false;
     let activeMessageId = 0
@@ -134,7 +134,7 @@
         const title = document.createElement('h1');
         title.innerText = 'Messages';
         window.appendChild(title);
-    
+
         const messageCount = document.createElement('div');
         messageCount.id = 'message-count';
         messageCount.innerText = '0';
@@ -182,8 +182,6 @@
             button.click();
         });
         window.appendChild(rightArrow);
-
-
         document.body.appendChild(window);
     }
 
@@ -193,8 +191,11 @@
         messages = [];
         let id = 0;
         for(const node of nodes){
-            let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelector('p')?.innerHTML || ' ';
+
+            let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelectorAll('p') || ' ';
+
             let active = node.classList.contains('swiper-slide-active');
+            console.log({id: id, message: message, active: active})
             messages.push({id: id, message: message, active: active});
             id++;
         }
@@ -219,7 +220,6 @@
                         }, 250);
                     }
                 }else if(diff < 0){
-                    console.log("BACK");
                     let button = document.querySelector('#left-arrow');
                     for(let i = diff; i<0; i++){
                         setTimeout(() => {
@@ -236,8 +236,17 @@
 
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
-            messageElement.innerHTML = message.message === " " ? "-" : message.message;
-            messageElement.style.color = message.active ? 'green' : 'white';
+            console.log("Message length = " + message.message.length)
+            console.log("Message type = " + typeof message.message)
+            if(typeof message.message == 'object'){
+                message.message.forEach((node) => {
+                    messageElement.innerHTML += node.innerHTML + '</br></br>';
+                });
+                messageElement.style.color = message.active ? 'green' : 'white';
+            }else{
+                messageElement.innerHTML = message.message === " " ? "-" : message.message;
+                messageElement.style.color = message.active ? 'green' : 'white';
+            }
             if(message.active){
                 activeMessageId = message.id;
             }
