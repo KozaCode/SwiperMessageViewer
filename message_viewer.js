@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Listing content script
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  Read messages from the swiper and print as a list on a created window
 // @author       You
 // @match        https://beta.character.ai/chat*
@@ -62,7 +62,7 @@
         z-index: 10000;
     }
     #list{
-        height: calc(100% - 100px);
+        height: calc(100% - 140px);
         overflow-y: scroll;
         padding: 10px;
         color: white;
@@ -112,7 +112,16 @@
         outline: none;
         z-index: 10000;
     }
-
+    #message-count{
+        //center
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+        text-align: center;
+        color: white;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
     `;
     document.getElementsByTagName('head')[0].appendChild(style);
 
@@ -125,6 +134,12 @@
         const title = document.createElement('h1');
         title.innerText = 'Messages';
         window.appendChild(title);
+    
+        const messageCount = document.createElement('div');
+        messageCount.id = 'message-count';
+        messageCount.innerText = '0';
+        window.appendChild(messageCount);
+
 
         const toggle = document.createElement('button');
         toggle.id = 'toggle';
@@ -172,8 +187,6 @@
         document.body.appendChild(window);
     }
 
-
-
     function updateList(){
         const wrapper = document.querySelector('.swiper-wrapper');
         const nodes = wrapper.querySelectorAll('.swiper-slide');
@@ -182,7 +195,6 @@
         for(const node of nodes){
             let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelector('p')?.innerHTML || ' ';
             let active = node.classList.contains('swiper-slide-active');
-
             messages.push({id: id, message: message, active: active});
             id++;
         }
@@ -217,8 +229,6 @@
                 }
             });
 
-
-
             const pointer = document.createElement('div');
             pointer.classList.add('pointer');
             pointer.innerHTML = message.active ? '→' : ' ';
@@ -244,6 +254,9 @@
         list.innerHTML = '';
         const messages = createMessageElements();
         messages.forEach((message) => list.appendChild(message));
+        const messageCount = document.getElementById('message-count');
+        messageCount.innerText = messages.length;
+
         if(isScrolledToBottom){
             list.scrollTop = list.scrollHeight;
         }
