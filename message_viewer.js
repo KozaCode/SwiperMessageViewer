@@ -146,13 +146,9 @@
         toggle.innerText = '⇅';
         toggle.addEventListener('click', () => {
             if(window.style.display === 'none'){
-                console.log('show');
                 window.style.display = 'block';
-
             }else{
-                console.log('hide');
                 window.style.display = 'none';
-
             }
         });
         document.body.appendChild(toggle);
@@ -195,7 +191,7 @@
             let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelectorAll('p') || ' ';
 
             let active = node.classList.contains('swiper-slide-active');
-            console.log({id: id, message: message, active: active})
+
             messages.push({id: id, message: message, active: active});
             id++;
         }
@@ -211,7 +207,6 @@
                 isScrolledToBottom = false;
                 let id = item.dataset.id;
                 let diff = id - activeMessageId;
-                console.log("dif = " + diff);
                 if(diff > 0){
                     let button = document.querySelector('#right-arrow');
                     for(let i = 0; i < diff; i++){
@@ -236,8 +231,6 @@
 
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
-            console.log("Message length = " + message.message.length)
-            console.log("Message type = " + typeof message.message)
             if(typeof message.message == 'object'){
                 message.message.forEach((node) => {
                     messageElement.innerHTML += node.innerHTML + '</br></br>';
