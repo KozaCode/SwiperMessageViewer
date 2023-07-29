@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Listing content script
 // @namespace    http://tampermonkey.net/
-// @version      0.4
+// @version      0.5
 // @description  Read messages from the swiper and print as a list on a created window
-// @author       You
+// @author       KozaCode
 // @match        https://beta.character.ai/chat*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=character.ai
 // @grant        none
@@ -12,13 +12,16 @@
 
 (function() {
     'use strict';
-
+    let useObserver = false;
     let messages = [];
+    let messageElements = [];
     let isScrolledToBottom = false;
-    let added = false;
+    let mutated = false;
     let detected = false;
-    let activeMessageId = 0
-
+    let activeMessageId;
+    let intervalOfAutoScroll = 200; //ms
+    let wrapper;
+    let wrapperChecker;
     let style = document.createElement('style');
     style.setAttribute('type', 'text/css');
     style.innerHTML = `
@@ -26,7 +29,7 @@
         position: fixed;
         top: 0;
         right: 0;
-        width: 300px;
+        width: 450px;
         height: 100%;
         background-color: black;
         z-index: 9999;
@@ -70,50 +73,50 @@
         font-family: monospace;
         line-height: 1.5;
         text-align: justify;
+        
     }
     .item{
         margin-bottom: 10px;
         border-bottom: 1px solid white;
         display: flex;
         flex-direction: row;
+        align-items: stretch;
+        border-left: 1px solid white;
     }
     .pointer{
-        display: inline-block;
-        width: 10px;
-        height: 100%;
-        margin-right: 10px;
+        width: 20px;
+        height: 20px;
         text-align: center;
+        margin-left: auto;
+        margin-right: auto;
+        font-size: 20px;
+        line-height: 20px;
+        user-select: none;
     }
     .message{
         display: inline-block;
         width: calc(100% - 20px);
     }
-    #left-arrow{
+
+    .arrow{
         position: absolute;
-        left: 10px;
         bottom: 0;
         background-color: transparent;
         border: none;
         color: white;
-        font-size: 20px;
+        font-size: 40px;
         cursor: pointer;
         outline: none;
         z-index: 10000;
+        user-select: none;
+    }
+    #left-arrow{
+        left: 10px;
     }
     #right-arrow{
-        position: absolute;
         right: 10px;
-        bottom: 0;
-        background-color: transparent;
-        border: none;
-        color: white;
-        font-size: 20px;
-        cursor: pointer;
-        outline: none;
-        z-index: 10000;
     }
     #message-count{
-        //center
         margin-left: auto;
         margin-right: auto;
         width: 100%;
@@ -121,6 +124,26 @@
         color: white;
         font-size: 14px;
         margin-bottom: 10px;
+    }
+    .left-side{
+        display: flex;
+        width: 30px;
+        height: 100%;
+        margin-right: 10px;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border-right: 1px solid white;
+        border-top: 1px solid white;
+    }
+    .id{
+        width: 20px;
+        height: 20px;
+        text-align: center;
+        font-size: 15px;
+        color: white;
+        cursor: pointer;
+        user-select: none;
     }
     `;
     document.getElementsByTagName('head')[0].appendChild(style);
@@ -162,6 +185,7 @@
         window.appendChild(list);
 
         const leftArrow = document.createElement('div');
+        leftArrow.classList.add('arrow');
         leftArrow.id = 'left-arrow';
         leftArrow.innerText = '←';
         leftArrow.addEventListener('click', () => {
@@ -171,6 +195,7 @@
         window.appendChild(leftArrow);
 
         const rightArrow = document.createElement('div');
+        rightArrow.classList.add('arrow');
         rightArrow.id = 'right-arrow';
         rightArrow.innerText = '→';
         rightArrow.addEventListener('click', () => {
@@ -181,20 +206,44 @@
         document.body.appendChild(window);
     }
 
-    function updateList(){
+    function checkAndUpdateMessages(){
         const wrapper = document.querySelector('.swiper-wrapper');
         const nodes = wrapper.querySelectorAll('.swiper-slide');
-        messages = [];
-        let id = 0;
+        let tempMessages = [];
+        let different = false;
+        let id = 1;
+
         for(const node of nodes){
-
-            let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelectorAll('p') || ' ';
-
+            let message = node.querySelector('span.typing-dot') !== null ? '...' : node.querySelectorAll('p') || '-';
+            if(typeof message == 'object'){
+                let temp = "";
+                message.forEach((node) => {
+                    temp += node.innerHTML + "</br></br>";
+                });
+                message = temp;
+            }
+            if(!different){
+                if(!messages[id]){
+                    different = true;
+                }else if(messages[id].message !== message){
+                    different = true;
+                }
+            }
             let active = node.classList.contains('swiper-slide-active');
-
-            messages.push({id: id, message: message, active: active});
+            if(active && activeMessageId){
+                //clear active
+                let activeMessage = messageElements[activeMessageId-1];
+                activeMessage.querySelector('.pointer').innerHTML = ' ';
+                activeMessage.querySelector('.message').style.color = 'white';
+                activeMessageId = id;
+            }
+            tempMessages.push({id: id, message: message, active: active});
             id++;
         }
+        if(different){
+            messages = tempMessages;
+        }
+        return different;
     }
 
     function createMessageElements(){
@@ -203,7 +252,39 @@
             item.classList.add('item');
             item.dataset.id = message.id;
 
-            item.addEventListener('click', () => {
+            const leftSide = document.createElement('div');
+            leftSide.classList.add('left-side');
+            item.appendChild(leftSide);
+
+            const pointer = document.createElement('div');
+            pointer.classList.add('pointer');
+            pointer.innerHTML = message.active ? '→' : ' ';
+            leftSide.appendChild(pointer);
+
+            const idElement = document.createElement('div');
+            idElement.classList.add('id');
+            idElement.innerHTML = message.id;
+            idElement.style.color = 'white';
+            idElement.addEventListener('click', () => {
+                if(idElement.style.color === 'gold'){
+                    idElement.style.color = 'white';
+                    idElement.style.backgroundColor = 'transparent';
+
+                }else{
+                    idElement.style.color = 'gold';
+                    idElement.style.backgroundColor = '#333333'
+                }
+            });
+            leftSide.appendChild(idElement);
+
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.innerHTML = message.message;
+            messageElement.style.color = message.active ? 'green' : 'white';
+            if(message.active){
+                activeMessageId = message.id;
+            }
+            messageElement.addEventListener('click', () => {
                 isScrolledToBottom = false;
                 let id = item.dataset.id;
                 let diff = id - activeMessageId;
@@ -212,75 +293,78 @@
                     for(let i = 0; i < diff; i++){
                         setTimeout(() => {
                             button.click();
-                        }, 250);
+                        }, intervalOfAutoScroll * (i+1));
                     }
                 }else if(diff < 0){
                     let button = document.querySelector('#left-arrow');
-                    for(let i = diff; i<0; i++){
+                    for(let i = 0; i < Math.abs(diff); i++){
                         setTimeout(() => {
                             button.click();
-                        }, 250);
+                        }, intervalOfAutoScroll * (i+1));
                     }
                 }
             });
-
-            const pointer = document.createElement('div');
-            pointer.classList.add('pointer');
-            pointer.innerHTML = message.active ? '→' : ' ';
-            item.appendChild(pointer);
-
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            if(typeof message.message == 'object'){
-                message.message.forEach((node) => {
-                    messageElement.innerHTML += node.innerHTML + '</br></br>';
-                });
-                messageElement.style.color = message.active ? 'green' : 'white';
-            }else{
-                messageElement.innerHTML = message.message === " " ? "-" : message.message;
-                messageElement.style.color = message.active ? 'green' : 'white';
-            }
-            if(message.active){
-                activeMessageId = message.id;
-            }
             item.appendChild(messageElement);
-
-
-
             return item;
         });
     }
 
-    function displayMessages(){
+    function displayMessages(recreate = false){
         const list = document.getElementById('list');
         list.innerHTML = '';
-        const messages = createMessageElements();
-        messages.forEach((message) => list.appendChild(message));
+        messageElements = recreate ? createMessageElements() : messageElements;
+        for(const message of messageElements){
+            list.appendChild(message);
+        }
         const messageCount = document.getElementById('message-count');
-        messageCount.innerText = messages.length;
+        messageCount.innerText = activeMessageId + "/" + messageElements.length;
 
         if(isScrolledToBottom){
             list.scrollTop = list.scrollHeight;
         }
     }
-
-    const observer = new MutationObserver((mutations) => {
-        added = false;
-        for (const mutation of mutations) {
-            if(mutation.type === 'childList' && mutation.addedNodes.length > 0 && mutation.addedNodes[0].localName === 'p'){
-                added = true;
-                break;
+    if(useObserver){
+        //Observer does not work properly on mobile devices so it is disabled by default and the interval is used instead
+        const observer = new MutationObserver((mutations) => {
+            mutated = false;
+            for (const mutation of mutations) {
+                if(mutation.type === 'childList' && mutation.addedNodes.length > 0 && mutation.addedNodes[0].localName === 'p'){
+                    mutated = true;
+                    break;
+                }else if(mutation.type === 'attributes' && mutation.attributeName === 'style' && mutation.target.classList.contains('swiper-slide-active')){
+                    mutated = true;
+                    break;
+                }
             }
-        }
-        if(added){
-            observer.disconnect();
-            updateList();
-            displayMessages();
-            observer.observe(document.body, { childList: true, subtree: true });
-        }
+            if(mutated){
+                
+                observer.disconnect();
+                if(checkAndUpdateMessages()){
+                    displayMessages(true);
+                }else{
+                    displayMessages(false);
+                }
+                wrapper = document.getElementsByClassName('swiper-wrapper')[0];
+                observer.observe(document.getElementsByClassName('swiper-wrapper')[0], { childList: true, subtree: true, attributes: true});
+            }
 
-    });
+        });
+        wrapperChecker = setInterval(() => {
+            if(wrapper === undefined){
+                observer.disconnect();
+                wrapper = document.getElementsByClassName('swiper-wrapper')[0];
+                observer.observe(wrapper ? wrapper : document.body, { childList: true, subtree: true, attributes: true});
+            }
+        }, 1000);
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true});
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    }else{
+        setInterval(() => {
+            checkAndUpdateMessages();
+            displayMessages(true);
+        }, 700);
+    }
+
+
     createWindow();
 })();
