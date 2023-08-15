@@ -528,7 +528,6 @@
         //When we have the messages we can build HTML element for each message that will be added to the list using our style
         //If we rebuild the list we need to clear it first so we won't have duplicates
         list.innerHTML = '';
-
         let i = 0;
         localMessagesText.forEach((message) => {
             i++;
@@ -537,11 +536,18 @@
             message = message.replace(emRegex, "<em class='action'>");
             if(searchSentence !== ""){
                 const words = searchSentence.split(';');
+                let includes = false;
                 words.forEach((word) => {
                     if(word === ""){return;}
                     const searchWord = new RegExp(`(?![^<]*>)${word}`, 'gi');
                     message = message.replace(searchWord, "<em class='search-result'>$&</em>");
+                    if(message.includes(`<em class='search-result'>`)){
+                        includes = true;
+                    }
                 });
+                if(!includes){
+                    return;
+                }
             };
             if(excludeSentence !== ""){
                 const words = excludeSentence.split(';');
